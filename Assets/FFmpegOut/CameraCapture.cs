@@ -1,4 +1,5 @@
 ﻿using UnityEngine;
+using UnityEngine.Rendering.PostProcessing;
 
 namespace FFmpegOut
 {
@@ -32,6 +33,8 @@ namespace FFmpegOut
 
         static int _activePipeCount;
 
+        RenderTexture _grab;
+
         #endregion
 
         #region MonoBehavior functions
@@ -58,11 +61,21 @@ namespace FFmpegOut
         void OnDisable()
         {
             if (_pipe != null) ClosePipe();
+            if (_grab != null)
+            {
+                _grab.Release();
+                _grab = null;
+            }
         }
 
         void OnDestroy()
         {
             if (_pipe != null) ClosePipe();
+            if (_grab != null)
+            {
+                _grab.Release();
+                _grab = null;
+            }
         }
 
         void Start()
@@ -82,17 +95,14 @@ namespace FFmpegOut
             {
                 if (_pipe != null) ClosePipe();
             }
-        }
 
-        void OnRenderImage(RenderTexture source, RenderTexture destination)
-        {
-            if (_pipe != null)
+            if (_pipe != null && _grab != null)
             {
-                var tempRT = RenderTexture.GetTemporary(source.width, source.height);
-                Graphics.Blit(source, tempRT, _material, 0);
+                var tempRT = RenderTexture.GetTemporary(_grab.width, _grab.height);
+                Graphics.Blit(_grab, tempRT, _material, 0);
 
-                var tempTex = new Texture2D(source.width, source.height, TextureFormat.RGBA32, false);
-                tempTex.ReadPixels(new Rect(0, 0, source.width, source.height), 0, 0, false);
+                var tempTex = new Texture2D(_grab.width, _grab.height, TextureFormat.RGBA32, false);
+                tempTex.ReadPixels(new Rect(0, 0, _grab.width, _grab.height), 0, 0, false);
                 tempTex.Apply();
 
                 _pipe.Write(tempTex.GetRawTextureData());
@@ -100,8 +110,33 @@ namespace FFmpegOut
                 Destroy(tempTex);
                 RenderTexture.ReleaseTemporary(tempRT);
             }
+        }
+        
+        public void Render(PostProcessRenderContext ctx)
+        {
+            var cmd = ctx.command;
+            
+            if (_pipe != null)
+            {
+                if (_grab == null || _grab.width != ctx.width || _grab.height != ctx.height)
+                {
+                    if (_grab != null)
+                    {
+                        _grab.Release();
+                    }
+                    
+                    _grab = new RenderTexture(ctx.width, ctx.height, 0, RenderTextureFormat.ARGB32);
+                }
 
-            Graphics.Blit(source, destination);
+                cmd.BlitFullscreenTriangle(ctx.source, _grab);
+            }
+
+            cmd.BlitFullscreenTriangle(ctx.source, ctx.destination);
+        }
+
+        void OnPostRender()
+        {
+            Debug.Log("OnPostRender");
         }
 
         #endregion
