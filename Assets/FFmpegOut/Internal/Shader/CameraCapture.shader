@@ -8,7 +8,7 @@
     CGINCLUDE
 
     #include "UnityCG.cginc"
-
+    
     sampler2D _MainTex;
 
     fixed4 frag_flip(v2f_img i) : SV_Target
